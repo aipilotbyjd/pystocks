@@ -49,37 +49,29 @@ def call_with_retry(func, *args, max_retries=5, delay=1.5, **kwargs):
     st.error("Max retries exceeded due to rate limiting.")
     return None
 
-# ------- Utility: Fetch OHLCV Data (Epoch ms) -------
-# ------- Utility: Fetch historical candle data (Epoch ms) -------
 @st.cache_data(show_spinner=False)
 def fetch_candle_data(token: str, interval: str, hours: int = 5) -> pd.DataFrame:
-    """
-    Fetches OHLCV data via SmartAPI using epoch-ms fromdate/todate.
-    interval: '1m','5m','15m','30m'
-    """
-    to_dt   = datetime.now()
+    to_dt = datetime.now()
     from_dt = to_dt - timedelta(hours=hours)
-
-    params = {
-        "exchange":    "NSE",
-        "symboltoken": token,
-        "interval":    {
-            '1m': 'ONE_MINUTE',
-            '5m': 'FIVE_MINUTE',
-            '15m': 'FIFTEEN_MINUTE',
-            '30m': 'THIRTY_MINUTE'
-        }[interval],
-        # epoch timestamp in milliseconds
-        "fromdate":    str(int(from_dt.timestamp() * 1000)),
-        "todate":      str(int(to_dt.timestamp() * 1000))
+    interval_map = {
+        '1m': 'ONE_MINUTE',
+        '5m': 'FIVE_MINUTE',
+        '15m': 'FIFTEEN_MINUTE',
+        '30m': 'THIRTY_MINUTE'
     }
-
+    params = {
+        "exchange": "NSE",
+        "symboltoken": token,
+        "interval": interval_map[interval],
+        "fromdate": from_dt.strftime("%Y-%m-%d %H:%M"),
+        "todate": to_dt.strftime("%Y-%m-%d %H:%M")
+    }
     resp = call_with_retry(smart_api.getCandleData, params)
-    data = resp.get('data', []) if resp else []
-    df = pd.DataFrame(data, columns=["ts","O","H","L","C","V"])
-    df['ts'] = pd.to_datetime(df['ts'], unit='ms')
+    data = resp.get('data') if resp else []
+    df = pd.DataFrame(data, columns=["ts", "O", "H", "L", "C", "V"])
+    df['ts'] = pd.to_datetime(df['ts'], format='%Y-%m-%d %H:%M:%S')
     df.set_index('ts', inplace=True)
-    df.rename(columns={'O':'open','H':'high','L':'low','C':'close','V':'volume'}, inplace=True)
+    df.rename(columns={'O': 'open', 'H': 'high', 'L': 'low', 'C': 'close', 'V': 'volume'}, inplace=True)
     return df
 
 # ------- Utility: Fetch Option Chain -------
