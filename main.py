@@ -53,23 +53,33 @@ def call_with_retry(func, *args, max_retries=5, delay=1.5, **kwargs):
 def fetch_candle_data(token: str, interval: str, hours: int = 5) -> pd.DataFrame:
     to_dt = datetime.now()
     from_dt = to_dt - timedelta(hours=hours)
+
     interval_map = {
         '1m': 'ONE_MINUTE',
         '5m': 'FIVE_MINUTE',
         '15m': 'FIFTEEN_MINUTE',
         '30m': 'THIRTY_MINUTE'
     }
+
     params = {
         "exchange": "NSE",
         "symboltoken": token,
         "interval": interval_map[interval],
-        "fromdate": from_dt.strftime("%Y-%m-%d %H:%M"),
+        "fromdate": from_dt.strftime("%Y-%m-%d %H:%M"),  # ✅ Format like "2021-02-08 09:00"
         "todate": to_dt.strftime("%Y-%m-%d %H:%M")
     }
+
+    print("Fetching with params:", params)
+
     resp = call_with_retry(smart_api.getCandleData, params)
     data = resp.get('data') if resp else []
+
+    if not data:
+        return pd.DataFrame()  # Return empty DataFrame if no data
+
     df = pd.DataFrame(data, columns=["ts", "O", "H", "L", "C", "V"])
-    df['ts'] = pd.to_datetime(df['ts'], format='%Y-%m-%d %H:%M:%S')
+    df['ts'] = pd.to_datetime(df['ts'], format="%Y-%m-%d %H:%M:%S", errors='coerce')  # Coerce invalids to NaT
+    df.dropna(subset=["ts"], inplace=True)  # Drop bad rows if timestamp parsing fails
     df.set_index('ts', inplace=True)
     df.rename(columns={'O': 'open', 'H': 'high', 'L': 'low', 'C': 'close', 'V': 'volume'}, inplace=True)
     return df
