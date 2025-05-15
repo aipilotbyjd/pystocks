@@ -69,8 +69,6 @@ def fetch_candle_data(token: str, interval: str, hours: int = 5) -> pd.DataFrame
         "todate": to_dt.strftime("%Y-%m-%d %H:%M")
     }
 
-    print("Fetching with params:", params)
-
     resp = call_with_retry(smart_api.getCandleData, params)
     data = resp.get('data') if resp else []
 
